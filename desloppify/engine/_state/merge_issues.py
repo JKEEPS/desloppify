@@ -66,23 +66,18 @@ def _mark_scan_verified(
     attestation_text: str,
 ) -> bool:
     """Refresh corroboration and return whether it adds new absence evidence."""
-    existing = issue.get("resolution_attestation")
-    if not isinstance(existing, dict):
-        existing = {}
-        issue["resolution_attestation"] = existing
-    last_seen = str(issue.get("last_seen") or "")
-    verified_at = str(existing.get("scan_verified_at") or "")
-    # Rechecking the same absence only refreshes recency. A later sighting
-    # (possible for wontfix issues) or a changed verification scope is new.
-    new_evidence = (
-        not existing.get("scan_verified")
-        or existing.get("scan_verification_text") != attestation_text
-        or bool(last_seen and (not verified_at or last_seen > verified_at))
-    )
     issue["suppressed"] = False
     issue["suppressed_at"] = None
     issue["suppression_pattern"] = None
     issue["note"] = note
+    existing = issue.get("resolution_attestation")
+    if not isinstance(existing, dict):
+        existing = {}
+        issue["resolution_attestation"] = existing
+    new_evidence = (
+        not existing.get("scan_verified")
+        or existing.get("scan_verification_text") != attestation_text
+    )
     existing["scan_verified"] = True
     existing["scan_verified_at"] = now
     existing["scan_verification_text"] = attestation_text
@@ -131,6 +126,15 @@ def verify_disappeared(
         # so that review issues with file="." aren't wrongly resolved as
         # "out of current scan scope".
         if previous.get("detector", "unknown") in suspect_detectors:
+            continue
+
+        # Review imports only run review/concern detectors and cannot
+        # corroborate manually resolved mechanical findings.
+        if (
+            previous_status != "open"
+            and confirmed_detectors is not None
+            and previous.get("detector", "unknown") not in confirmed_detectors
+        ):
             continue
 
         if scan_path and scan_path != ".":
@@ -280,6 +284,13 @@ def upsert_issues(
         previous["suppressed"] = False
         previous["suppressed_at"] = None
         previous["suppression_pattern"] = None
+
+        # A reappearing accepted finding ends its corroborated absence even
+        # when both scans share the same timestamp second.
+        if previous["status"] == "wontfix":
+            attestation = previous.get("resolution_attestation")
+            if isinstance(attestation, dict):
+                attestation["scan_verified"] = False
 
         if previous["status"] in ("fixed", "auto_resolved", "false_positive"):
             # Review-request issues are condition-based. When just
