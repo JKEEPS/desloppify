@@ -153,6 +153,7 @@ class MergeScanOptions:
     lang: str | None = None
     scan_path: str | None = None
     force_resolve: bool = False
+    canonical_false_positive_ids: frozenset[str] = frozenset()
     exclude: tuple[str, ...] = ()
     potentials: dict[str, int] | None = None
     merge_potentials: bool = False
@@ -213,6 +214,7 @@ def merge_scan(
             now,
             lang=resolved_options.lang,
             ignore_metadata=ignore_metadata,
+            canonical_false_positive_ids=resolved_options.canonical_false_positive_ids,
         )
     )
 

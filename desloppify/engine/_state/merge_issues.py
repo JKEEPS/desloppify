@@ -219,6 +219,7 @@ def upsert_issues(
     *,
     lang: str | None,
     ignore_metadata: Mapping[str, Any] | None = None,
+    canonical_false_positive_ids: frozenset[str] = frozenset(),
 ) -> tuple[set[str], int, int, dict[str, int], int, set[str]]:
     """Insert new issues and update existing ones.
 
@@ -314,7 +315,13 @@ def upsert_issues(
                 ),
             )
             reopened_count += 1
-            changed_detectors.add(detector)
+            # Keep raw reopen semantics, while excluding only a same-ID
+            # false positive that canonical plan policy will restore.
+            if (
+                previous_status != "false_positive"
+                or issue_id not in canonical_false_positive_ids
+            ):
+                changed_detectors.add(detector)
 
     return current_ids, new_count, reopened_count, by_detector, ignored_count, changed_detectors
 
